@@ -35,9 +35,9 @@ int main()
     /* initialise USART1 debug output (TX on pin PA9 and RX on pin PA10) */
     USART1_Init();
 
-    while (1) {
-        printf("Starting\n");
-    }
+    printf("Starting\n");
+    fflush(stdout);
+    USART1_flush();
     
     /* Initialise LEDs */
     printf("Initialising LEDs\n");
@@ -69,7 +69,7 @@ int main()
       /* Read Gyro Angular data */
       Gyro_ReadAngRate(angRate);
 
-      printf("X: %f Y: %f Z: %f\n", (double)angRate[0], (double)angRate[1], (double)angRate[2]);
+      printf("X: %f Y: %f Z: %f\n", angRate[0], angRate[1], angRate[2]);
 
         float MagBuffer[3] = {0.0f}, AccBuffer[3] = {0.0f};
         float fNormAcc,fSinRoll,fCosRoll,fSinPitch,fCosPitch = 0.0f, RollAng = 0.0f, PitchAng = 0.0f;
@@ -149,7 +149,7 @@ int main()
       
       HeadingValue = (float) ((atan2f((float)fTiltedY,(float)fTiltedX))*180)/PI;
  
-        printf("Compass heading: %f %f %f\n", (double)fTiltedX, (double)fTiltedY, (double)HeadingValue);
+        printf("Compass heading: %f\n", HeadingValue);
     }
 
     return 1;
