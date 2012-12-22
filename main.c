@@ -24,6 +24,9 @@ const uint32_t leds[8] = {LED3, LED4, LED6, LED8, LED10, LED9, LED7, LED5};
 
 int main()
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+
     /*!< At this stage the microcontroller clock setting is already configured, 
       this is done through SystemInit() function which is called from startup
       file (startup_stm32f30x.s) before to branch to application main.
@@ -38,12 +41,12 @@ int main()
     /* initialise USART1 debug output (TX on pin PA9 and RX on pin PA10) */
     USART1_Init();
 
-    printf("Starting\n");
-    fflush(stdout);
+    printf("Starting\n\ntest\ntest\ntest\n\n\n");
     USART1_flush();
 
     printf("Initialising USB\n");
     USBHID_Init();
+    printf("Initialising USB HID\n");
     Joystick_init();
     
     /* Initialise LEDs */

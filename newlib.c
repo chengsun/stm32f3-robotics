@@ -34,7 +34,7 @@ int _write (FILEHANDLE fh, const uint8_t *buf, uint32_t len, int mode)
     if ((fh == STDOUT) || (fh == STDERR))
     {
         USART1_write((const char *) buf, len);
-        return (0);
+        return (len);
     };
     if (fh <= STDERR) return (-1);
     //return (__write (fh, buf, len));
