@@ -16,6 +16,3 @@ If you get a hard fault exception when `printf`ing a `%d` bigger than 10, you ha
     --with-float=hard
     --with-fpu=fpv4-sp-d16
     --with-mode=thumb
-
-One issue is that printf ignores everything after the first newline you enter in it. so `printf("a\nb\n")` would only print `"a\n"`.
-Setting the buffer mode seems to make it act strangely.
