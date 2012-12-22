@@ -29,7 +29,7 @@
 #include "usb_lib.h"
 #include "usb_conf.h"
 #include "usb_pwr.h"
-#include "hw_config.h"
+#include "usb.h"
 
 /** @addtogroup STM32F3-Discovery_Demo
   * @{

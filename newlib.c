@@ -1,4 +1,5 @@
 #include "newlib.h"
+#include "usart.h"
 
 #include <stdio.h>
 #include <stdlib.h>

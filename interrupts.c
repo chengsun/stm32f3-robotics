@@ -1,7 +1,6 @@
 #include "interrupts.h"
 #include "stm32f3_discovery.h"
 #include "usb_lib.h"
-#include "hw_config.h"
 #include "usb_pwr.h"
 #include "platform_config.h"
 #include "usart.h"
@@ -139,25 +138,6 @@ void EXTI0_IRQHandler(void)
   }
 }
 
-#if defined (USB_INT_DEFAULT)
-void USB_LP_CAN1_RX0_IRQHandler(void)
-#elif defined (USB_INT_REMAP)
-void USB_LP_IRQHandler(void)
-#endif
-{
-   USB_Istr();
-}
-
-#if defined (USB_INT_DEFAULT)
-void USBWakeUp_IRQHandler(void)
-#elif defined (USB_INT_REMAP)
-void USBWakeUp_RMP_IRQHandler(void)
-#endif
-{
-  /* Initiate external resume sequence (1 step) */
-  Resume(RESUME_EXTERNAL);  
-  EXTI_ClearITPendingBit(EXTI_Line18);
-}
 /**
   * @brief  This function handles PPP interrupt request.
   * @param  None
