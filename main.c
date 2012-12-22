@@ -35,7 +35,9 @@ int main()
     /* initialise USART1 debug output (TX on pin PA9 and RX on pin PA10) */
     USART1_Init();
 
-    printf("Starting\n");
+    while (1) {
+        printf("Starting\n");
+    }
     
     /* Initialise LEDs */
     printf("Initialising LEDs\n");
