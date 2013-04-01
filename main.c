@@ -27,6 +27,7 @@ extern __IO uint32_t totalTime;
 
 const uint32_t leds[8] = {LED3, LED4, LED6, LED8, LED10, LED9, LED7, LED5};
 
+/* axes is a rotation matrix from board coords to world coords */
 float axes[3][3];
 float *const Xaxis = axes[0], *const Yaxis = axes[1], *const Zaxis = axes[2];
 float accs[2][3], vels[2][3], poss[2][3], angRates[2][3], angs[2][3], mags[2][3];
@@ -77,7 +78,7 @@ void vecMul(float x[3][3], float *v)
     }
 }
 
-void vecMulInv(float x[3][3], float *v)
+void vecMulTrans(float x[3][3], float *v)
 {
     int i, j;
     float vcopy[3];
@@ -91,19 +92,29 @@ void vecMulInv(float x[3][3], float *v)
 }
 
 /*
-void vecMulMatInv(float o[3][3], float x[3][3], float v[3][3])
+void vecMulMat(float o[3][3], float x[3][3], float y[3][3])
 {
     int i, j;
-    float vcopy[3];
-    memcpy(vcopy, v, sizeof(vcopy));
     for (i = 0; i < 3; ++i) {
         for (j = 0; j < 3; ++j) {
-
+            o[i][j] =
+                x[i][0]*y[0][j] +
+                x[i][1]*y[1][j] +
+                x[i][2]*y[2][j];
         }
-        float xtrans[3];
-        for (j = 0; j < 3; ++j)
-            xtrans[j] = x[j][i];
-        v[i] = vecDot(vcopy, xtrans);
+    }
+}
+
+void vecMulMatTrans(float o[3][3], float x[3][3], float y[3][3])
+{
+    int i, j;
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+            o[i][j] =
+                x[0][i]*y[0][j] +
+                x[1][i]*y[1][j] +
+                x[2][i]*y[2][j];
+        }
     }
 }
 */
@@ -274,24 +285,43 @@ int main()
         Compass_ReadMagAvg(mag, 2);
         vecMul(axes, mag);
         float compassAngle = atan2f(mag[1], mag[0]) * 180.f / PI;
+        if (compassAngle > 180.f) compassAngle -= 360.f;
         //vecNorm(mag);
-        /*
+        printf("%6.3f\n", compassAngle);
+
+#if 0
         Gyro_ReadAngRateAvg(angRate, 2);
+        angRate[0] *= 180.f / PI;
+        angRate[1] *= 180.f / PI;
+        angRate[2] *= 180.f / PI;
         float s[3] = {sin(angRate[0]), sin(angRate[1]), sin(angRate[2])};
         float c[3] = {cos(angRate[0]), cos(angRate[1]), cos(angRate[2])};
         float gyroMat[3][3] = {
-            {c[1]*c[2], c[0]*s[2]+s[0]*s[1]*c[2], s[0]*s[2]-c[0]*s[1]*c[2]},
-            {-c[1]*c[2], c[0]*c[2]+s[0]*s[1]*s[2], s[0]*c[2]-c[0]*s[1]*s[2]},
-            {s[1], -s[0]*c[1], c[0]*c[1]}};
+            {c[0]*c[1], c[0]*s[1], -s[1]},
+            {c[0]*s[1]*s[2]-s[0]*c[2], c[0]*c[2]+s[0]*s[1]*s[2], c[1]*s[2]},
+            {c[0]*s[1]*c[2]+s[0]*s[2], -c[0]*s[2]+s[0]*s[1]*c[2], c[1]*c[2]}};
+        /*
         float gyroWorldMat[3][3];
-        vecMulMatInv(gyroWorldMat, axes, angRate);
-        *ang += angRate[2]/300.f;
+        vecMulMatTrans(gyroWorldMat, axes, gyroMat);
+        *ang = gyroWorldMat[2][0];
+        *ang += gyroWorldMat[2][1];
+        *ang += gyroWorldMat[2][2];
+        *ang /= 300.f;
         static const float ANGALPHA = 0.0f;
         *ang += ANGALPHA*(compassAngle - *ang);
         */
-        if (((++C) & 0x3) == 0) {
-            printf("%6.3f\n", compassAngle);
+        float rotObsVec[3];
+        memcpy(rotObsVec, axes[0], sizeof(rotObsVec));
+        vecMul(gyroMat, rotObsVec);
+        vecMul(axes, rotObsVec);
+        rotObsVec[2] = 0.f;
+        vecNorm(rotObsVec);
+        float angDelta = acos(rotObsVec[0]);
+
+        if (((++C) & 0x7) == 0) {
+            printf("%6.3f %6.3f %6.3f %6.3f\n", rotObsVec[0], rotObsVec[1], rotObsVec[2], angDelta);
         }
+#endif
 
 
 #if 0
