@@ -10,7 +10,9 @@ __IO uint32_t TimingDelay = 0;
 extern __IO uint32_t UserButtonPressed;
 extern __IO uint8_t DataReady;
 extern __IO uint32_t USBConnectTimeOut;
-static __IO uint32_t i = 0;
+__IO uint8_t currentlyReadingI2C = 0;
+__IO uint32_t timeReadI2C = 0;
+__IO uint32_t totalTime = 0;
 
 /******************************************************************************/
 /*            Cortex-M4 Processor Exceptions Handlers                         */
@@ -111,6 +113,9 @@ void SysTick_Handler(void)
   TimingDelay_Decrement();
   USBConnectTimeOut--;
   DataReady ++;
+
+  if (currentlyReadingI2C) timeReadI2C++;
+  totalTime++;
 }
 
 /******************************************************************************/

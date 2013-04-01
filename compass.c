@@ -6,6 +6,9 @@
 #define LSM_Acc_Sensitivity_8g     (float)     0.25f           /*!< accelerometer sensitivity with 8 g full scale [LSB/mg] */
 #define LSM_Acc_Sensitivity_16g    (float)     0.0834f         /*!< accelerometer sensitivity with 12 g full scale [LSB/mg] */
 
+extern __IO uint8_t currentlyReadingI2C;
+extern __IO uint32_t timeReadI2C;
+extern __IO uint32_t totalTime;
 
 void Compass_Init(void)
 {
@@ -15,16 +18,16 @@ void Compass_Init(void)
   
   /* Configure MEMS magnetometer main parameters: temp, working mode, full Scale and Data rate */
   LSM303DLHC_InitStructure.Temperature_Sensor = LSM303DLHC_TEMPSENSOR_DISABLE;
-  LSM303DLHC_InitStructure.MagOutput_DataRate =LSM303DLHC_ODR_30_HZ ;
+  LSM303DLHC_InitStructure.MagOutput_DataRate =LSM303DLHC_ODR_220_HZ ;
   LSM303DLHC_InitStructure.MagFull_Scale = LSM303DLHC_FS_8_1_GA;
   LSM303DLHC_InitStructure.Working_Mode = LSM303DLHC_CONTINUOS_CONVERSION;
   LSM303DLHC_MagInit(&LSM303DLHC_InitStructure);
   
    /* Fill the accelerometer structure */
   LSM303DLHCAcc_InitStructure.Power_Mode = LSM303DLHC_NORMAL_MODE;
-  LSM303DLHCAcc_InitStructure.AccOutput_DataRate = LSM303DLHC_ODR_50_HZ;
+  LSM303DLHCAcc_InitStructure.AccOutput_DataRate = LSM303DLHC_ODR_1344_HZ;
   LSM303DLHCAcc_InitStructure.Axes_Enable= LSM303DLHC_AXES_ENABLE;
-  LSM303DLHCAcc_InitStructure.AccFull_Scale = LSM303DLHC_FULLSCALE_2G;
+  LSM303DLHCAcc_InitStructure.AccFull_Scale = LSM303DLHC_FULLSCALE_16G;
   LSM303DLHCAcc_InitStructure.BlockData_Update = LSM303DLHC_BlockUpdate_Continous;
   LSM303DLHCAcc_InitStructure.Endianness=LSM303DLHC_BLE_LSB;
   LSM303DLHCAcc_InitStructure.High_Resolution=LSM303DLHC_HR_ENABLE;

@@ -31,7 +31,7 @@ void USART1_Init(void)
   
     USART_InitTypeDef USART_InitStructure;
     USART_StructInit(&USART_InitStructure);
-    USART_InitStructure.USART_BaudRate = 9600;
+    USART_InitStructure.USART_BaudRate = 57600;
     USART_Init(USART1, &USART_InitStructure);
   
     USART_Cmd(USART1, ENABLE);

@@ -20,7 +20,159 @@ __IO float HeadingValue = 0.0f;
 __IO uint8_t DataReady = 0;
 __IO uint8_t PrevXferComplete = 1;
 
+extern __IO uint8_t currentlyReadingI2C;
+extern __IO uint32_t timeReadI2C;
+extern __IO uint32_t totalTime;
+
+
 const uint32_t leds[8] = {LED3, LED4, LED6, LED8, LED10, LED9, LED7, LED5};
+
+float axes[3][3];
+float *const Xaxis = axes[0], *const Yaxis = axes[1], *const Zaxis = axes[2];
+float accs[2][3], vels[2][3], poss[2][3], angRates[2][3], angs[2][3], mags[2][3];
+float zeroAngRate[3];
+
+
+void vecCross(float *o, float *a, float *b)
+{
+    o[0] = a[1]*b[2] - a[2]*b[1];
+    o[1] = a[2]*b[0] - a[0]*b[2];
+    o[2] = a[0]*b[1] - a[1]*b[0];
+}
+
+void vecNegate(float *v)
+{
+    int i;
+    for (i = 0; i < 3; ++i) {
+        v[i] = -v[i];
+    }
+}
+
+float vecDot(const float *a, const float *b)
+{
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+float vecLen(const float *v)
+{
+    return sqrt(vecDot(v, v));
+}
+
+void vecNorm(float *v)
+{
+    float len = vecLen(v);
+    int i;
+    for (i = 0; i < 3; ++i) {
+        v[i] /= len;
+    }
+}
+
+void vecMul(float x[3][3], float *v)
+{
+    int i;
+    float vcopy[3];
+    memcpy(vcopy, v, sizeof(vcopy));
+    for (i = 0; i < 3; ++i) {
+        v[i] = vecDot(vcopy, x[i]);
+    }
+}
+
+void vecMulInv(float x[3][3], float *v)
+{
+    int i, j;
+    float vcopy[3];
+    memcpy(vcopy, v, sizeof(vcopy));
+    for (i = 0; i < 3; ++i) {
+        float xtrans[3];
+        for (j = 0; j < 3; ++j)
+            xtrans[j] = x[j][i];
+        v[i] = vecDot(vcopy, xtrans);
+    }
+}
+
+/*
+void vecMulMatInv(float o[3][3], float x[3][3], float v[3][3])
+{
+    int i, j;
+    float vcopy[3];
+    memcpy(vcopy, v, sizeof(vcopy));
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+
+        }
+        float xtrans[3];
+        for (j = 0; j < 3; ++j)
+            xtrans[j] = x[j][i];
+        v[i] = vecDot(vcopy, xtrans);
+    }
+}
+*/
+
+void Compass_ReadAccAvg(float *v, int n)
+{
+    float vals[3] = {};
+    int i = n, x;
+    memset(v, 0, sizeof(float[3]));
+    while (i--) {
+        Compass_ReadAcc(vals);
+        for (x = 0; x < 3; ++x)
+            v[x] += vals[x];
+    }
+    for (x = 0; x < 3; ++x)
+        v[x] /= n;
+}
+
+void Compass_ReadMagAvg(float *v, int n)
+{
+    float vals[3] = {};
+    int i = n, x;
+    memset(v, 0, sizeof(float[3]));
+    while (i--) {
+        Compass_ReadMag(vals);
+        for (x = 0; x < 3; ++x)
+            v[x] += vals[x];
+    }
+    for (x = 0; x < 3; ++x)
+        v[x] /= n;
+}
+
+void Gyro_ReadAngRateAvg(float *v, int n)
+{
+    float vals[3] = {};
+    int i = n, x;
+    memset(v, 0, sizeof(float[3]));
+    while (i--) {
+        Gyro_ReadAngRate(vals);
+        for (x = 0; x < 3; ++x)
+            v[x] += vals[x];
+    }
+    for (x = 0; x < 3; ++x)
+        v[x] /= n;
+}
+
+void calibrate()
+{
+    // TODO: wait for things to stabilise
+    //printf("Calibrating\n");
+    Compass_ReadAccAvg(Zaxis, 1000);
+    vecNorm(Zaxis);
+    //printf("Z: %9.3f %9.3f %9.3f\n", Zaxis[0], Zaxis[1], Zaxis[2]);
+
+    Compass_ReadMag(Xaxis);
+    vecNorm(Xaxis);
+    //printf("X: %9.3f %9.3f %9.3f\n", Xaxis[0], Xaxis[1], Xaxis[2]);
+    vecCross(Yaxis, Zaxis, Xaxis);
+    vecNorm(Yaxis);
+    vecCross(Xaxis, Yaxis, Zaxis);
+    vecNorm(Xaxis);
+
+    Gyro_ReadAngRateAvg(zeroAngRate, 100);
+
+    //printf("X: %9.3f %9.3f %9.3f\n", Xaxis[0], Xaxis[1], Xaxis[2]);
+    //printf("Y: %9.3f %9.3f %9.3f\n", Yaxis[0], Yaxis[1], Yaxis[2]);
+    //printf("Z: %9.3f %9.3f %9.3f\n", Zaxis[0], Zaxis[1], Zaxis[2]);
+}
+
 
 int main()
 {
@@ -41,16 +193,18 @@ int main()
     /* initialise USART1 debug output (TX on pin PA9 and RX on pin PA10) */
     USART1_Init();
 
-    printf("Starting\n\ntest\ntest\ntest\n\n\n");
+    //printf("Starting\n");
     USART1_flush();
 
+    /*
     printf("Initialising USB\n");
     USBHID_Init();
     printf("Initialising USB HID\n");
     Joystick_init();
+    */
     
     /* Initialise LEDs */
-    printf("Initialising LEDs\n");
+    //printf("Initialising LEDs\n");
     int i;
     for (i = 0; i < 8; ++i) {
         STM_EVAL_LEDInit(leds[i]);
@@ -58,18 +212,89 @@ int main()
     }
 
     /* Initialise gyro */
-    printf("Initialising gyroscope\n");
+    //printf("Initialising gyroscope\n");
     Gyro_Init();
 
     /* Initialise compass */
-    printf("Initialising compass\n");
+    //printf("Initialising compass\n");
     Compass_Init();
 
+    Delay(100);
+    calibrate();
+
+    int C = 0, noAccelCount = 0;
 
     while (1) {
-      /* Wait for data ready */
-        Delay(20);
+        float *acc = accs[C&1],
+              *prevAcc = accs[(C&1)^1],
+              *vel = vels[C&1],
+              *prevVel = vels[(C&1)^1],
+              *pos = poss[C&1],
+              *prevPos = poss[(C&1)^1],
+              *angRate = angRates[C&1],
+              *prevAngRate = angRates[(C&1)^1],
+              *ang = angs[C&1],
+              *prevAng = angs[(C&1)^1],
+              *mag = mags[C&1],
+              *prevmag = mags[(C&1)^1];
 
+        /* Wait for data ready */
+
+#if 0
+        Compass_ReadAccAvg(acc, 10);
+        vecMul(axes, acc);
+        //printf("X: %9.3f Y: %9.3f Z: %9.3f\n", acc[0], acc[1], acc[2]);
+        
+        float grav = acc[2];
+        acc[2] = 0;
+        
+        if (noAccelCount++ > 50) {
+            for (i = 0; i < 2; ++i) {
+                vel[i] = 0;
+                prevVel[i] = 0;
+            }
+            noAccelCount = 0;
+        }
+
+        if (vecLen(acc) > 50.f) {
+            for (i = 0; i < 2; ++i) {
+                vel[i] += prevAcc[i] + (acc[i]-prevAcc[i])/2.f;
+                pos[i] += prevVel[i] + (vel[i]-prevVel[i])/2.f;
+            }
+            noAccelCount = 0;
+        }
+
+        C += 1;
+        if (((C) & 0x7F) == 0) {
+            printf("%9.3f %9.3f %9.3f %9.3f %9.3f\n", vel[0], vel[1], pos[0], pos[1], grav);
+            //printf("%3.1f%% %d %5.1f %6.3f\n", (float) timeReadI2C*100.f / totalTime, C, (float) C*100.f / (totalTime), grav);
+        }
+#endif
+
+        Compass_ReadMagAvg(mag, 2);
+        vecMul(axes, mag);
+        float compassAngle = atan2f(mag[1], mag[0]) * 180.f / PI;
+        //vecNorm(mag);
+        /*
+        Gyro_ReadAngRateAvg(angRate, 2);
+        float s[3] = {sin(angRate[0]), sin(angRate[1]), sin(angRate[2])};
+        float c[3] = {cos(angRate[0]), cos(angRate[1]), cos(angRate[2])};
+        float gyroMat[3][3] = {
+            {c[1]*c[2], c[0]*s[2]+s[0]*s[1]*c[2], s[0]*s[2]-c[0]*s[1]*c[2]},
+            {-c[1]*c[2], c[0]*c[2]+s[0]*s[1]*s[2], s[0]*c[2]-c[0]*s[1]*s[2]},
+            {s[1], -s[0]*c[1], c[0]*c[1]}};
+        float gyroWorldMat[3][3];
+        vecMulMatInv(gyroWorldMat, axes, angRate);
+        *ang += angRate[2]/300.f;
+        static const float ANGALPHA = 0.0f;
+        *ang += ANGALPHA*(compassAngle - *ang);
+        */
+        if (((++C) & 0x3) == 0) {
+            printf("%6.3f\n", compassAngle);
+        }
+
+
+#if 0
         float angRate[3];
       
       /* Read Gyro Angular data */
@@ -156,6 +381,7 @@ int main()
       HeadingValue = (float) ((atan2f((float)fTiltedY,(float)fTiltedX))*180)/PI;
  
         printf("Compass heading: %f\n", HeadingValue);
+#endif
     }
 
     return 1;
