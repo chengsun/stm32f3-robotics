@@ -287,7 +287,8 @@ int main()
         float compassAngle = atan2f(mag[1], mag[0]) * 180.f / PI;
         if (compassAngle > 180.f) compassAngle -= 360.f;
         //vecNorm(mag);
-        printf("%6.3f\n", compassAngle);
+        Gyro_ReadAngRateAvg(angRate, 2);
+        printf("c%6.3f\ng%6.3f\n", compassAngle, angRate[2]);
 
 #if 0
         Gyro_ReadAngRateAvg(angRate, 2);
@@ -319,6 +320,7 @@ int main()
         float angDelta = acos(rotObsVec[0]);
 
         if (((++C) & 0x7) == 0) {
+            printf("%6.3f\n", compassAngle);
             printf("%6.3f %6.3f %6.3f %6.3f\n", rotObsVec[0], rotObsVec[1], rotObsVec[2], angDelta);
         }
 #endif
