@@ -30,7 +30,6 @@ const uint32_t leds[8] = {LED3, LED4, LED6, LED8, LED10, LED9, LED7, LED5};
 /* axes is a rotation matrix from board coords to world coords */
 float axes[3][3];
 float *const Xaxis = axes[0], *const Yaxis = axes[1], *const Zaxis = axes[2];
-float accs[2][3], vels[2][3], poss[2][3], angRates[2][3], angs[2][3], mags[2][3];
 float zeroAngRate[3];
 
 
@@ -78,47 +77,6 @@ void vecMul(float x[3][3], float *v)
     }
 }
 
-void vecMulTrans(float x[3][3], float *v)
-{
-    int i, j;
-    float vcopy[3];
-    memcpy(vcopy, v, sizeof(vcopy));
-    for (i = 0; i < 3; ++i) {
-        float xtrans[3];
-        for (j = 0; j < 3; ++j)
-            xtrans[j] = x[j][i];
-        v[i] = vecDot(vcopy, xtrans);
-    }
-}
-
-/*
-void vecMulMat(float o[3][3], float x[3][3], float y[3][3])
-{
-    int i, j;
-    for (i = 0; i < 3; ++i) {
-        for (j = 0; j < 3; ++j) {
-            o[i][j] =
-                x[i][0]*y[0][j] +
-                x[i][1]*y[1][j] +
-                x[i][2]*y[2][j];
-        }
-    }
-}
-
-void vecMulMatTrans(float o[3][3], float x[3][3], float y[3][3])
-{
-    int i, j;
-    for (i = 0; i < 3; ++i) {
-        for (j = 0; j < 3; ++j) {
-            o[i][j] =
-                x[0][i]*y[0][j] +
-                x[1][i]*y[1][j] +
-                x[2][i]*y[2][j];
-        }
-    }
-}
-*/
-
 void Compass_ReadAccAvg(float *v, int n)
 {
     float vals[3] = {};
@@ -163,25 +121,25 @@ void Gyro_ReadAngRateAvg(float *v, int n)
 
 void calibrate()
 {
-    // TODO: wait for things to stabilise
-    //printf("Calibrating\n");
-    Compass_ReadAccAvg(Zaxis, 1000);
+    // at rest the accelerometer reports an acceleration straight upwards
+    // due to gravity. use this as our Z axis
+    Compass_ReadAccAvg(Zaxis, 500);
     vecNorm(Zaxis);
-    //printf("Z: %9.3f %9.3f %9.3f\n", Zaxis[0], Zaxis[1], Zaxis[2]);
 
-    Compass_ReadMag(Xaxis);
+    // the magnetic strength is greatest towards magnetic north. use this as
+    // our X axis
+    Compass_ReadMagAvg(Xaxis, 10);
     vecNorm(Xaxis);
-    //printf("X: %9.3f %9.3f %9.3f\n", Xaxis[0], Xaxis[1], Xaxis[2]);
+
+    // create a Y axis perpendicular to the X and Z axes
     vecCross(Yaxis, Zaxis, Xaxis);
     vecNorm(Yaxis);
+    // ensire that the X axis is actually perpendicular to the Y and Z axes
     vecCross(Xaxis, Yaxis, Zaxis);
     vecNorm(Xaxis);
 
+    // calibrate the zero error on the gyroscope
     Gyro_ReadAngRateAvg(zeroAngRate, 100);
-
-    //printf("X: %9.3f %9.3f %9.3f\n", Xaxis[0], Xaxis[1], Xaxis[2]);
-    //printf("Y: %9.3f %9.3f %9.3f\n", Yaxis[0], Yaxis[1], Yaxis[2]);
-    //printf("Z: %9.3f %9.3f %9.3f\n", Zaxis[0], Zaxis[1], Zaxis[2]);
 }
 
 
@@ -207,13 +165,6 @@ int main()
     //printf("Starting\n");
     USART1_flush();
 
-    /*
-    printf("Initialising USB\n");
-    USBHID_Init();
-    printf("Initialising USB HID\n");
-    Joystick_init();
-    */
-    
     /* Initialise LEDs */
     //printf("Initialising LEDs\n");
     int i;
@@ -231,189 +182,26 @@ int main()
     Compass_Init();
 
     Delay(100);
+    // perform calibration
     calibrate();
 
-    int C = 0, noAccelCount = 0;
 
     while (1) {
-        float *acc = accs[C&1],
-              *prevAcc = accs[(C&1)^1],
-              *vel = vels[C&1],
-              *prevVel = vels[(C&1)^1],
-              *pos = poss[C&1],
-              *prevPos = poss[(C&1)^1],
-              *angRate = angRates[C&1],
-              *prevAngRate = angRates[(C&1)^1],
-              *ang = angs[C&1],
-              *prevAng = angs[(C&1)^1],
-              *mag = mags[C&1],
-              *prevmag = mags[(C&1)^1];
+        float angRate[3], mag[3];
 
-        /* Wait for data ready */
-
-#if 0
-        Compass_ReadAccAvg(acc, 10);
-        vecMul(axes, acc);
-        //printf("X: %9.3f Y: %9.3f Z: %9.3f\n", acc[0], acc[1], acc[2]);
-        
-        float grav = acc[2];
-        acc[2] = 0;
-        
-        if (noAccelCount++ > 50) {
-            for (i = 0; i < 2; ++i) {
-                vel[i] = 0;
-                prevVel[i] = 0;
-            }
-            noAccelCount = 0;
-        }
-
-        if (vecLen(acc) > 50.f) {
-            for (i = 0; i < 2; ++i) {
-                vel[i] += prevAcc[i] + (acc[i]-prevAcc[i])/2.f;
-                pos[i] += prevVel[i] + (vel[i]-prevVel[i])/2.f;
-            }
-            noAccelCount = 0;
-        }
-
-        C += 1;
-        if (((C) & 0x7F) == 0) {
-            printf("%9.3f %9.3f %9.3f %9.3f %9.3f\n", vel[0], vel[1], pos[0], pos[1], grav);
-            //printf("%3.1f%% %d %5.1f %6.3f\n", (float) timeReadI2C*100.f / totalTime, C, (float) C*100.f / (totalTime), grav);
-        }
-#endif
-
+        // read average compass values
         Compass_ReadMagAvg(mag, 2);
+        // rotate the compass values so that they are aligned with Earth
         vecMul(axes, mag);
+        // calculate the heading through inverse tan of the Y/X magnetic strength
         float compassAngle = atan2f(mag[1], mag[0]) * 180.f / PI;
+        // fix heading to be in range -180 to 180
         if (compassAngle > 180.f) compassAngle -= 360.f;
-        //vecNorm(mag);
+        // read average gyro values
         Gyro_ReadAngRateAvg(angRate, 2);
-        printf("c%6.3f\ng%6.3f\n", compassAngle, angRate[2]);
+        // print out everything
+        printf("c%6.3f\ng%6.3f\n", compassAngle, angRate[2]-zeroAngRate[2]);
 
-#if 0
-        Gyro_ReadAngRateAvg(angRate, 2);
-        angRate[0] *= 180.f / PI;
-        angRate[1] *= 180.f / PI;
-        angRate[2] *= 180.f / PI;
-        float s[3] = {sin(angRate[0]), sin(angRate[1]), sin(angRate[2])};
-        float c[3] = {cos(angRate[0]), cos(angRate[1]), cos(angRate[2])};
-        float gyroMat[3][3] = {
-            {c[0]*c[1], c[0]*s[1], -s[1]},
-            {c[0]*s[1]*s[2]-s[0]*c[2], c[0]*c[2]+s[0]*s[1]*s[2], c[1]*s[2]},
-            {c[0]*s[1]*c[2]+s[0]*s[2], -c[0]*s[2]+s[0]*s[1]*c[2], c[1]*c[2]}};
-        /*
-        float gyroWorldMat[3][3];
-        vecMulMatTrans(gyroWorldMat, axes, gyroMat);
-        *ang = gyroWorldMat[2][0];
-        *ang += gyroWorldMat[2][1];
-        *ang += gyroWorldMat[2][2];
-        *ang /= 300.f;
-        static const float ANGALPHA = 0.0f;
-        *ang += ANGALPHA*(compassAngle - *ang);
-        */
-        float rotObsVec[3];
-        memcpy(rotObsVec, axes[0], sizeof(rotObsVec));
-        vecMul(gyroMat, rotObsVec);
-        vecMul(axes, rotObsVec);
-        rotObsVec[2] = 0.f;
-        vecNorm(rotObsVec);
-        float angDelta = acos(rotObsVec[0]);
-
-        if (((++C) & 0x7) == 0) {
-            printf("%6.3f\n", compassAngle);
-            printf("%6.3f %6.3f %6.3f %6.3f\n", rotObsVec[0], rotObsVec[1], rotObsVec[2], angDelta);
-        }
-#endif
-
-
-#if 0
-        float angRate[3];
-      
-      /* Read Gyro Angular data */
-      Gyro_ReadAngRate(angRate);
-
-      printf("X: %f Y: %f Z: %f\n", angRate[0], angRate[1], angRate[2]);
-
-        float MagBuffer[3] = {0.0f}, AccBuffer[3] = {0.0f};
-        float fNormAcc,fSinRoll,fCosRoll,fSinPitch,fCosPitch = 0.0f, RollAng = 0.0f, PitchAng = 0.0f;
-        float fTiltedX,fTiltedY = 0.0f;
-
-
-      Compass_ReadMag(MagBuffer);
-      Compass_ReadAcc(AccBuffer);
-      
-      for(i=0;i<3;i++)
-        AccBuffer[i] /= 100.0f;
-      
-      fNormAcc = sqrt((AccBuffer[0]*AccBuffer[0])+(AccBuffer[1]*AccBuffer[1])+(AccBuffer[2]*AccBuffer[2]));
-      
-      fSinRoll = -AccBuffer[1]/fNormAcc;
-      fCosRoll = sqrt(1.0-(fSinRoll * fSinRoll));
-      fSinPitch = AccBuffer[0]/fNormAcc;
-      fCosPitch = sqrt(1.0-(fSinPitch * fSinPitch));
-     if ( fSinRoll >0)
-     {
-       if (fCosRoll>0)
-       {
-         RollAng = acos(fCosRoll)*180/PI;
-       }
-       else
-       {
-         RollAng = acos(fCosRoll)*180/PI + 180;
-       }
-     }
-     else
-     {
-       if (fCosRoll>0)
-       {
-         RollAng = acos(fCosRoll)*180/PI + 360;
-       }
-       else
-       {
-         RollAng = acos(fCosRoll)*180/PI + 180;
-       }
-     }
-     
-      if ( fSinPitch >0)
-     {
-       if (fCosPitch>0)
-       {
-            PitchAng = acos(fCosPitch)*180/PI;
-       }
-       else
-       {
-          PitchAng = acos(fCosPitch)*180/PI + 180;
-       }
-     }
-     else
-     {
-       if (fCosPitch>0)
-       {
-            PitchAng = acos(fCosPitch)*180/PI + 360;
-       }
-       else
-       {
-          PitchAng = acos(fCosPitch)*180/PI + 180;
-       }
-     }
-
-      if (RollAng >=360)
-      {
-        RollAng = RollAng - 360;
-      }
-      
-      if (PitchAng >=360)
-      {
-        PitchAng = PitchAng - 360;
-      }
-      
-      fTiltedX = MagBuffer[0]*fCosPitch+MagBuffer[2]*fSinPitch;
-      fTiltedY = MagBuffer[0]*fSinRoll*fSinPitch+MagBuffer[1]*fCosRoll-MagBuffer[1]*fSinRoll*fCosPitch;
-      
-      HeadingValue = (float) ((atan2f((float)fTiltedY,(float)fTiltedX))*180)/PI;
- 
-        printf("Compass heading: %f\n", HeadingValue);
-#endif
     }
 
     return 1;
